@@ -52,8 +52,14 @@ const ButtonSignin = ({
         const data = await signInWithEmail(email, password);
         setSession(data.session);
         setShowModal(false);
-        router.push("/dashboard");
-      }
+        // 检查是否从创作页面跳转过来，如果是则返回创作页面
+        const currentPath = window.location.pathname;
+        if (currentPath === "/create-story" || document.referrer.includes("/create-story")) {
+          router.push("/create-story");
+        } else {
+          router.push("/dashboard");
+        }
+
     } catch (error: any) {
       setError(error.message || "登录失败，请重试");
     } finally {

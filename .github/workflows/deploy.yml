@@ -1,0 +1,79 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - test
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_ENV: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Create .env file
+      run: |
+        echo "NEXTAUTH_URL=${{ vars.NEXTAUTH_URL }}" > .env
+        echo "NEXTAUTH_SECRET=${{ vars.NEXTAUTH_SECRET }}" >> .env
+        echo "GOOGLE_ID=${{ vars.GOOGLE_ID }}" >> .env
+        echo "GOOGLE_SECRET=${{ vars.GOOGLE_SECRET }}" >> .env
+        echo "RESEND_API_KEY=${{ vars.RESEND_API_KEY }}" >> .env
+        echo "MONGODB_URI=${{ vars.MONGODB_URI }}" >> .env
+        echo "CREEM_API_KEY=${{ vars.CREEM_API_KEY }}" >> .env
+        echo "CREEM_WEBHOOK_SECRET=${{ vars.CREEM_WEBHOOK_SECRET }}" >> .env
+        cat .env
+
+    - name: Build Next.js app
+      run: |
+        NODE_ENV=${{ env.BUILD_ENV }} npx next build --debug
+        
+        # 复制必要文件到 standalone 目录
+        cp -r public .next/standalone/public
+        cp -r .next/static .next/standalone/.next/static
+        cp pm2.config.js .next/standalone/pm2.config.js
+
+    - name: Setup SSH key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+
+    - name: Deploy to server
+      run: |
+        rsync -az --delete \
+          -e "ssh -p ${{ secrets.SSH_PORT || '22' }}" \
+          --exclude '.git' \
+          .next/standalone/ \
+          ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:${{ secrets.SSH_DEPLOY_PATH }}
+
+    - name: Restart application on server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT || '22' }}
+        script: |
+          pm2 restart website

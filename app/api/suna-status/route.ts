@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwt}`,
       },
-    });
+    } );
 
     const data = await response.json();
 
@@ -53,5 +53,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
-
 

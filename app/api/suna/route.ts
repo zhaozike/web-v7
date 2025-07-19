@@ -1,3 +1,5 @@
+
+
 import { NextRequest, NextResponse } from 'next/server';
 // import { createClient } from '@supabase/supabase-js'; // 暂时注释掉Supabase客户端导入
 
@@ -7,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // 固定Suna Agent JWT，用于绕过500错误
-const FIXED_SUNA_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZDlhMDE4Yi02ZTIxLTQ4MzYtODdhMi01MTU5Y2FmYTEwMDQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzUyOTI3NTY1LCJpYXQiOjE3NTI5MjM5NjUsImVtYWlsIjoiMTExMzg0MDg1M0BxcS5jb20iLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsIjoiMTExMzg0MDg1M0BxcS5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGhvbmVfdmVyaWZpZWQiOmZhbHNlLCJzdWIiOiIyZDlhMDE4Yi02ZTIxLTQ4MzYtODdhMi01MTU5Y2FmYTEwMDQifSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTc1MjY0OTI0N31dLCJzZXNzaW9uX2lkIjoiN2MyYTNiZTMtOGY4MS00NTNiLThmNjYtYmJiNDBiMjExNTRmIiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.MDwpACeiIHGET2gF_tkY2kt5mXUqJTiBmZ2a1k_bIf8';
+const FIXED_SUNA_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZDlhMDE4Yi02ZTIxLTQ4MzYtODdhMi01MTU5Y2FmYTEwMDQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzUyOTI3NTY1LCJpYXQiOjE3NTI5MjM5NjUsImVtYWlsIjoiMTExMzg0MDg1M0BxcS5jb20iLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsIjoiMTExMzg0MDg1M0BxcS5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicG9uZl92ZXJpZmllZCI6ZmFsc2UsInN1YiI6IjJkOWEwMThiLTZlMjEtNDgzNi04N2EyLTUxNTljYWYxMDEwNCJ9LCJyb2xlIjoiYXV0aGVudGljYXRlZCIsImFhbCI6ImFhbDEiLCJhbXIiOlt7Im1ldGhvZCI6InBhc3N3b3JkIiwidGltZXN0YW1wIjoxNzUyNjQ5MjQ3fV0sInNlc3Npb25faWQiOiI3YzJhM2JlMy04ZjgxLTQ1M2ItOGY2Ni1iYmI0MGIyMTE1NGYiLCJpc19hbm9ueW1vdXMiOmZhbHNlfQ.MDwpACeiIHGET2gF_tkY2kt5mXUqJTiBmZ2a1k_bIf8';
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
     // 准备FormData（Suna API期望的格式）
     const formData = new FormData();
     formData.append('prompt', body.prompt || '');
-    formData.append('model_name', 'claude-3-5-sonnet-20241022');
+    formData.append('model_name', 'claude-4'); // 尝试使用 claude-4 模型
     formData.append('enable_thinking', 'false');
     formData.append('reasoning_effort', 'medium');
     formData.append('stream', 'false');

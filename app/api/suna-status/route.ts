@@ -22,52 +22,104 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing threadId or agentRunId' }, { status: 400 });
     }
 
-    // 假设Suna Agent提供一个获取agent运行状态的API
-    // 根据之前查阅的Suna Agent代码，可能需要调用 /thread/{thread_id}/agent-runs/{agent_run_id} 或者类似的端点
     const sunaAgentStatusUrl = `https://suna-1.learnwise.app/thread/${threadId}/agent-runs/${agentRunId}`;
 
-    const response = await fetch(sunaAgentStatusUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${jwt}`,
-      },
-    });
+    console.log('Calling Suna Agent Status with URL:', sunaAgentStatusUrl);
 
-    // 改进的错误处理：检查响应类型
+    let response;
+    try {
+      response = await fetch(sunaAgentStatusUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwt}`,
+        },
+      });
+    } catch (fetchError: any) {
+      console.error('Fetch error when calling Suna Agent Status:', fetchError);
+      return NextResponse.json({ 
+        error: '无法连接到Suna Agent状态服务，请检查网络连接或稍后重试',
+        details: fetchError.message 
+      }, { status: 503 });
+    }
+
+    console.log('Suna Agent Status response status:', response.status);
+    console.log('Suna Agent Status response headers:', Object.fromEntries(response.headers.entries()));
+
+    // 检查响应状态
+    if (!response.ok) {
+      console.error('Suna Agent Status returned non-OK status:', response.status);
+      
+      // 尝试读取响应内容
+      let errorContent;
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          errorContent = await response.json();
+        } else {
+          errorContent = await response.text();
+        }
+      } catch (readError) {
+        errorContent = 'Unable to read error response';
+      }
+      
+      console.error('Suna Agent Status error content:', errorContent);
+      
+      if (response.status === 404) {
+        return NextResponse.json({ error: 'Suna Agent状态服务端点不存在，请联系管理员' }, { status: 503 });
+      } else if (response.status === 401 || response.status === 403) {
+        return NextResponse.json({ error: '认证失败，请重新登录' }, { status: 401 });
+      } else {
+        return NextResponse.json({ 
+          error: `Suna Agent状态服务返回错误 (状态码: ${response.status})`,
+          details: typeof errorContent === 'string' ? errorContent : JSON.stringify(errorContent)
+        }, { status: response.status });
+      }
+    }
+
+    // 检查响应类型
     const contentType = response.headers.get('content-type');
+    console.log('Status Response Content-Type:', contentType);
     
     if (!contentType || !contentType.includes('application/json')) {
       // 如果不是JSON响应，读取文本内容用于调试
       const textResponse = await response.text();
-      console.error('Non-JSON response from Suna Agent Status:', textResponse);
+      console.error('Non-JSON response from Suna Agent Status:', textResponse.substring(0, 500));
       
-      if (response.status === 404) {
-        return NextResponse.json({ error: 'Suna Agent状态服务暂时不可用，请稍后重试' }, { status: 503 });
-      } else if (response.status === 401 || response.status === 403) {
-        return NextResponse.json({ error: '认证失败，请重新登录' }, { status: 401 });
-      } else {
-        return NextResponse.json({ error: 'Suna Agent状态服务返回了意外的响应格式' }, { status: 502 });
-      }
+      return NextResponse.json({ 
+        error: 'Suna Agent状态服务返回了意外的响应格式（期望JSON，实际收到HTML或其他格式）',
+        details: `Content-Type: ${contentType}, Response preview: ${textResponse.substring(0, 200)}...`
+      }, { status: 502 });
     }
 
     let data;
     try {
       data = await response.json();
-    } catch (jsonError) {
+      console.log('Suna Agent Status response data:', data);
+    } catch (jsonError: any) {
       console.error('JSON parsing error:', jsonError);
-      return NextResponse.json({ error: 'Suna Agent状态服务返回了无效的JSON数据' }, { status: 502 });
+      
+      // 尝试重新读取响应作为文本
+      try {
+        const textContent = await response.text();
+        console.error('Raw status response content:', textContent.substring(0, 500));
+        return NextResponse.json({ 
+          error: 'Suna Agent状态服务返回了无效的JSON数据',
+          details: `JSON解析错误: ${jsonError.message}, 响应内容: ${textContent.substring(0, 200)}...`
+        }, { status: 502 });
+      } catch (textError) {
+        return NextResponse.json({ 
+          error: 'Suna Agent状态服务返回了无法解析的响应',
+          details: `JSON解析错误: ${jsonError.message}`
+        }, { status: 502 });
+      }
     }
 
-    if (!response.ok) {
-      console.error('Suna Agent Status API Error:', data);
-      return NextResponse.json({ error: data.detail || 'Failed to get Suna Agent status' }, { status: response.status });
-    }
+    // 验证响应数据结构并提取状态和故事内容
+    const status = data.status || data.state || 'unknown'; // 尝试多个可能的字段名
+    const story = data.responses || data.result || data.output || data.story; // 尝试多个可能的字段名
 
-    // 假设Suna Agent返回的状态字段是 'status'
-    // 并且最终的故事内容在 'responses' 字段中
-    const status = data.status; // 'running', 'completed', 'failed'
-    const story = data.responses; // 假设故事内容在这里
+    console.log('Successfully got status from Suna Agent:', { status, hasStory: !!story });
 
     return NextResponse.json({ status, story });
 
@@ -76,13 +128,21 @@ export async function GET(req: NextRequest) {
     
     // 提供更具体的错误信息
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      return NextResponse.json({ error: '无法连接到Suna Agent状态服务，请检查网络连接' }, { status: 503 });
+      return NextResponse.json({ 
+        error: '无法连接到Suna Agent状态服务，请检查网络连接',
+        details: error.message 
+      }, { status: 503 });
     } else if (error.message.includes('JSON')) {
-      return NextResponse.json({ error: 'Suna Agent状态服务返回了无效的数据格式' }, { status: 502 });
+      return NextResponse.json({ 
+        error: 'Suna Agent状态服务返回了无效的数据格式',
+        details: error.message 
+      }, { status: 502 });
     } else {
-      return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+      return NextResponse.json({ 
+        error: '服务器内部错误',
+        details: error.message 
+      }, { status: 500 });
     }
   }
 }
-
 

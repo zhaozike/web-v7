@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// 创建Supabase客户端（使用服务端配置）
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function GET(request: NextRequest) {
   try {
     console.log('=== Suna Status API Route Called ===');
     
-    // 从URL参数获取threadId和agentRunId
+    // 从URL参数获取agentRunId
     const { searchParams } = new URL(request.url);
     const threadId = searchParams.get('threadId');
     const agentRunId = searchParams.get('agentRunId');
     
     console.log('Query parameters:', { threadId, agentRunId });
     
-    if (!threadId || !agentRunId) {
-      console.error('Missing required parameters:', { threadId, agentRunId });
+    if (!agentRunId) {
+      console.error('Missing required parameter: agentRunId');
       return NextResponse.json(
-        { error: '缺少必要的参数：threadId 和 agentRunId' },
+        { error: '缺少必要的参数：agentRunId' },
         { status: 400 }
       );
     }
@@ -32,8 +38,20 @@ export async function GET(request: NextRequest) {
     const jwt = authHeader.substring(7); // 移除 "Bearer " 前缀
     console.log('JWT token length:', jwt.length);
     
-    // 构建状态查询URL
-    const statusUrl = `https://suna-1.learnwise.app/api/v1/threads/${threadId}/agent-runs/${agentRunId}`;
+    // 验证JWT token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    if (authError || !user) {
+      console.error('JWT验证失败:', authError);
+      return NextResponse.json(
+        { error: 'JWT token无效，请重新登录' },
+        { status: 401 }
+      );
+    }
+    
+    console.log('JWT验证成功，用户ID:', user.id);
+    
+    // 构建状态查询URL - 使用正确的Suna API端点
+    const statusUrl = `https://suna-1.learnwise.app/agent-run/${agentRunId}`;
     console.log('Querying status with URL:', statusUrl);
     
     let statusResponse;
@@ -68,7 +86,7 @@ export async function GET(request: NextRequest) {
       
       if (statusResponse.status === 404) {
         return NextResponse.json(
-          { error: 'Suna Agent状态查询端点不存在，请联系管理员' },
+          { error: 'Agent运行记录不存在' },
           { status: 404 }
         );
       } else if (statusResponse.status === 401) {
@@ -118,13 +136,13 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // 处理状态数据
+    // 处理状态数据，转换为前端期望的格式
     const result = {
-      threadId,
-      agentRunId,
+      threadId: threadId,
+      agentRunId: agentRunId,
       status: statusData.status || 'unknown',
       progress: statusData.progress || 0,
-      result: statusData.result || null,
+      story: statusData.result || statusData.story || null,
       error: statusData.error || null,
       completed: statusData.status === 'completed' || statusData.status === 'finished',
       failed: statusData.status === 'failed' || statusData.status === 'error',
@@ -150,5 +168,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
 

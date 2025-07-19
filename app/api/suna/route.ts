@@ -6,24 +6,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    console.log('=== Suna Status API Route Called ===');
+    console.log('=== Suna API Route Called ===');
     
-    // 从URL参数获取agentRunId
-    const { searchParams } = new URL(request.url);
-    const threadId = searchParams.get('threadId');
-    const agentRunId = searchParams.get('agentRunId');
-    
-    console.log('Query parameters:', { threadId, agentRunId });
-    
-    if (!agentRunId) {
-      console.error('Missing required parameter: agentRunId');
-      return NextResponse.json(
-        { error: '缺少必要的参数：agentRunId' },
-        { status: 400 }
-      );
-    }
+    // 获取请求体
+    const body = await request.json();
+    console.log('Request body:', JSON.stringify(body, null, 2));
     
     // 从请求头获取JWT
     const authHeader = request.headers.get('authorization');
@@ -50,112 +39,114 @@ export async function GET(request: NextRequest) {
     
     console.log('JWT验证成功，用户ID:', user.id);
     
-    // 构建状态查询URL - 使用正确的Suna API端点
-    const statusUrl = `https://suna-1.learnwise.app/agent-run/${agentRunId}`;
-    console.log('Querying status with URL:', statusUrl);
+    // 调用Suna API的agent/initiate端点
+    const sunaApiUrl = 'https://suna-1.learnwise.app/agent/initiate';
+    console.log('Calling Suna API with URL:', sunaApiUrl);
     
-    let statusResponse;
+    // 准备FormData（Suna API期望的格式）
+    const formData = new FormData();
+    formData.append('prompt', body.prompt || '');
+    formData.append('model_name', 'claude-3-5-sonnet-20241022');
+    formData.append('enable_thinking', 'false');
+    formData.append('reasoning_effort', 'medium');
+    formData.append('stream', 'false');
+    formData.append('enable_context_manager', 'true');
+    
+    // 添加故事相关参数
+    if (body.storyLength) {
+      formData.append('story_length', body.storyLength);
+    }
+    if (body.ageGroup) {
+      formData.append('age_group', body.ageGroup);
+    }
+    if (body.storyType) {
+      formData.append('story_type', body.storyType);
+    }
+    
+    let sunaResponse;
     try {
-      statusResponse = await fetch(statusUrl, {
-        method: 'GET',
+      sunaResponse = await fetch(sunaApiUrl, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${jwt}`,
-          'Accept': 'application/json',
         },
+        body: formData,
       });
       
-      console.log('Status response status:', statusResponse.status);
-      console.log('Status response headers:', Object.fromEntries(statusResponse.headers.entries()));
+      console.log('Suna API response status:', sunaResponse.status);
+      console.log('Suna API response headers:', Object.fromEntries(sunaResponse.headers.entries()));
       
     } catch (fetchError: any) {
-      console.error('Fetch error when querying status:', fetchError);
+      console.error('Fetch error when calling Suna API:', fetchError);
       return NextResponse.json(
         { error: '无法连接到Suna Agent服务，请稍后重试' },
         { status: 503 }
       );
     }
     
-    // 检查状态查询响应
-    if (!statusResponse.ok) {
-      const errorText = await statusResponse.text();
-      console.error('Status query failed:', {
-        status: statusResponse.status,
-        statusText: statusResponse.statusText,
+    // 检查Suna API响应
+    if (!sunaResponse.ok) {
+      const errorText = await sunaResponse.text();
+      console.error('Suna API call failed:', {
+        status: sunaResponse.status,
+        statusText: sunaResponse.statusText,
         body: errorText
       });
       
-      if (statusResponse.status === 404) {
+      if (sunaResponse.status === 404) {
         return NextResponse.json(
-          { error: 'Agent运行记录不存在' },
+          { error: 'Suna Agent端点不存在，请联系管理员' },
           { status: 404 }
         );
-      } else if (statusResponse.status === 401) {
+      } else if (sunaResponse.status === 401) {
         return NextResponse.json(
           { error: '认证失败，请重新登录' },
           { status: 401 }
         );
       } else {
         return NextResponse.json(
-          { error: `状态查询失败: ${statusResponse.status} ${statusResponse.statusText}` },
-          { status: statusResponse.status }
+          { error: `Suna API调用失败: ${sunaResponse.status} ${sunaResponse.statusText}` },
+          { status: sunaResponse.status }
         );
       }
     }
     
-    // 解析状态查询响应
-    let statusData;
+    // 解析Suna API响应
+    let sunaData;
     try {
-      const responseText = await statusResponse.text();
-      console.log('Status query raw response:', responseText);
+      const responseText = await sunaResponse.text();
+      console.log('Suna API raw response:', responseText);
       
       if (!responseText.trim()) {
-        throw new Error('Empty response from status query');
+        throw new Error('Empty response from Suna API');
       }
       
-      // 检查响应是否为JSON格式
-      const contentType = statusResponse.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        console.error('Non-JSON response received:', {
-          contentType,
-          responseText: responseText.substring(0, 500)
-        });
-        return NextResponse.json(
-          { error: 'Suna Agent服务返回了意外的响应格式' },
-          { status: 502 }
-        );
-      }
-      
-      statusData = JSON.parse(responseText);
-      console.log('Status query parsed response:', statusData);
+      sunaData = JSON.parse(responseText);
+      console.log('Suna API parsed response:', sunaData);
       
     } catch (parseError) {
-      console.error('Failed to parse status response:', parseError);
+      console.error('Failed to parse Suna API response:', parseError);
       return NextResponse.json(
         { error: 'Suna Agent服务返回了无效的响应格式' },
         { status: 502 }
       );
     }
     
-    // 处理状态数据，转换为前端期望的格式
+    // 返回成功响应
     const result = {
-      threadId: threadId,
-      agentRunId: agentRunId,
-      status: statusData.status || 'unknown',
-      progress: statusData.progress || 0,
-      story: statusData.result || statusData.story || null,
-      error: statusData.error || null,
-      completed: statusData.status === 'completed' || statusData.status === 'finished',
-      failed: statusData.status === 'failed' || statusData.status === 'error',
-      ...statusData
+      threadId: sunaData.thread_id,
+      agentRunId: sunaData.agent_run_id,
+      message: '故事生成已开始',
+      ...sunaData
     };
     
-    console.log('=== Suna Status API Route Success ===');
+    console.log('=== Suna API Route Success ===');
     console.log('Final result:', result);
     
     return NextResponse.json(result);
     
   } catch (error: any) {
-    console.error('=== Suna Status API Route Error ===');
+    console.error('=== Suna API Route Error ===');
     console.error('Error details:', error);
     console.error('Error stack:', error.stack);
     
@@ -168,5 +159,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
 

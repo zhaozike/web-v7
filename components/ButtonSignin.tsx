@@ -123,7 +123,7 @@ const ButtonSignin = ({
 
       {/* Login Modal */}
       {showModal && (
-        <div className="modal block">
+        <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg mb-4">
               {isSignUp ? "注册账户" : "登录账户"}

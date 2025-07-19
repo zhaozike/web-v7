@@ -59,7 +59,7 @@ const ButtonSignin = ({
         } else {
           router.push("/dashboard");
         }
-
+      }
     } catch (error: any) {
       setError(error.message || "登录失败，请重试");
     } finally {
@@ -194,3 +194,4 @@ const ButtonSignin = ({
 };
 
 export default ButtonSignin;
+

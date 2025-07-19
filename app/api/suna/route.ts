@@ -39,8 +39,8 @@ export async function POST(request: NextRequest) {
     
     console.log('JWT验证成功，用户ID:', user.id);
     
-    // 调用Suna API的agent/initiate端点
-    const sunaApiUrl = 'https://suna-1.learnwise.app/agent/initiate';
+    // 调用Suna API的agent/initiate端点，添加/api前缀
+    const sunaApiUrl = 'https://suna-1.learnwise.app/api/agent/initiate';
     console.log('Calling Suna API with URL:', sunaApiUrl);
     
     // 准备FormData（Suna API期望的格式）
@@ -159,4 +159,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 

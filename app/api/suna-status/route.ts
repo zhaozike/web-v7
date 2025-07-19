@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -51,8 +50,8 @@ export async function GET(request: NextRequest) {
     
     console.log('JWT验证成功，用户ID:', user.id);
     
-    // 构建状态查询URL - 使用正确的Suna API端点
-    const statusUrl = `https://suna-1.learnwise.app/agent-run/${agentRunId}`;
+    // 构建状态查询URL - 使用正确的Suna API端点，添加/api前缀
+    const statusUrl = `https://suna-1.learnwise.app/api/agent-run/${agentRunId}`;
     console.log('Querying status with URL:', statusUrl);
     
     let statusResponse;
@@ -169,4 +168,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
 

@@ -29,6 +29,7 @@ const ButtonSignin = ({
     const fetchSession = async () => {
       try {
         const currentSession = await getSession();
+        console.log("Current session:", currentSession);
         setSession(currentSession);
       } catch (error) {
         console.error("Error fetching session:", error);
@@ -44,23 +45,31 @@ const ButtonSignin = ({
     setIsSubmitting(true);
     setError("");
 
+    console.log("Attempting to sign in with:", email);
+
     try {
       if (isSignUp) {
-        await signUpWithEmail(email, password);
+        const result = await signUpWithEmail(email, password);
+        console.log("Sign up result:", result);
         setError("注册成功！请检查您的邮箱以验证账户。");
       } else {
         const data = await signInWithEmail(email, password);
-        setSession(data.session);
-        setShowModal(false);
-        // 检查是否从创作页面跳转过来，如果是则返回创作页面
-        const currentPath = window.location.pathname;
-        if (currentPath === "/create-story" || document.referrer.includes("/create-story")) {
-          router.push("/create-story");
+        console.log("Sign in result:", data);
+        
+        if (data.session) {
+          setSession(data.session);
+          setShowModal(false);
+          setEmail("");
+          setPassword("");
+          
+          // 强制刷新页面以确保状态更新
+          window.location.reload();
         } else {
-          router.push("/dashboard");
+          throw new Error("登录成功但未获取到会话信息");
         }
       }
     } catch (error: any) {
+      console.error("Sign in error:", error);
       setError(error.message || "登录失败，请重试");
     } finally {
       setIsSubmitting(false);
@@ -159,7 +168,12 @@ const ButtonSignin = ({
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setError("");
+                    setEmail("");
+                    setPassword("");
+                  }}
                 >
                   取消
                 </button>
@@ -182,7 +196,10 @@ const ButtonSignin = ({
             <button
               type="button"
               className="btn btn-ghost w-full"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError("");
+              }}
             >
               {isSignUp ? "已有账户？点击登录" : "没有账户？点击注册"}
             </button>
@@ -194,4 +211,5 @@ const ButtonSignin = ({
 };
 
 export default ButtonSignin;
+
 

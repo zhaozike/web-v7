@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
       });
     } catch (fetchError: any) {
       console.error('Fetch error when creating thread:', fetchError);
-      
       // If thread creation fails, try alternative approach with a default thread ID
       console.log('Thread creation failed, trying with default thread ID...');
       const defaultThreadId = 'default-thread-' + Date.now();

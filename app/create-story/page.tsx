@@ -48,7 +48,7 @@ function CreateStoryContent() {
       const { threadId, agentRunId } = await startResponse.json();
 
       let storyResult = null;
-      while (status === "running") {
+      while (isGenerating) { // <-- 这里是修改的地方
         await new Promise(resolve => setTimeout(resolve, 3000)); // 每3秒轮询一次
 
         const statusResponse = await fetch(`/api/suna-status?threadId=${threadId}&agentRunId=${agentRunId}`, {

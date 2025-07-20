@@ -20,6 +20,9 @@ importers:
       '@mdx-js/react':
         specifier: ^2.3.0
         version: 2.3.0(react@18.2.0)
+      '@next-auth/supabase-adapter':
+        specifier: ^0.2.1
+        version: 0.2.1(@supabase/supabase-js@2.52.0)(next-auth@4.24.11(next@14.2.30(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.10.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
       '@next/mdx':
         specifier: ^13.5.6
         version: 13.5.11(@mdx-js/loader@2.3.0(webpack@5.100.2))(@mdx-js/react@2.3.0(react@18.2.0))
@@ -264,6 +267,12 @@ packages:
 
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
+
+  '@next-auth/supabase-adapter@0.2.1':
+    resolution: {integrity: sha512-BlIbBRd8QjdV84h/XH2QuuleZAFcmfRwT0pyvc9iqrVztxmjWOalNRvSA7xsbqsQq9mK16PMmNPRvsDEUAAgfQ==}
+    peerDependencies:
+      '@supabase/supabase-js': ^2.0.5
+      next-auth: ^4.18.7
 
   '@next/env@13.5.11':
     resolution: {integrity: sha512-fbb2C7HChgM7CemdCY+y3N1n8pcTKdqtQLbC7/EQtPdLvlMUT9JX/dBYl8MMZAtYG4uVMyPFHXckb68q/NRwqg==}
@@ -3183,6 +3192,11 @@ snapshots:
       '@emnapi/runtime': 1.4.4
       '@tybys/wasm-util': 0.10.0
     optional: true
+
+  '@next-auth/supabase-adapter@0.2.1(@supabase/supabase-js@2.52.0)(next-auth@4.24.11(next@14.2.30(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.10.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
+    dependencies:
+      '@supabase/supabase-js': 2.52.0
+      next-auth: 4.24.11(next@14.2.30(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.10.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
   '@next/env@13.5.11': {}
 

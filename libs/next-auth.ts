@@ -1,11 +1,16 @@
+// web-v7/libs/next-auth.ts
 import NextAuth from "next-auth";
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { MongoDBAdapter } from "@auth/mongodb-adapter";
+// import { MongoDBAdapter } from "@auth/mongodb-adapter"; // 移除 MongoDBAdapter 导入
 import config from "@/config";
-import connectMongo from "./mongo";
+// import connectMongo from "./mongo"; // 移除 connectMongo 导入
+
+// 新增导入 SupabaseAdapter 和 supabase 客户端
+import { SupabaseAdapter } from "@next-auth/supabase-adapter";
+import { supabase } from "@/utils/supabase/client"; 
 
 interface NextAuthOptionsExtended extends NextAuthOptions {
   adapter?: any;
@@ -51,8 +56,8 @@ export const authOptions: NextAuthOptionsExtended = {
     }),
     // Follow the "Login with Email" tutorial to set up your email server
     // Requires a MongoDB database. Set MONOGODB_URI env variable.
-    ...(connectMongo
-      ? [
+    // ...(connectMongo // 移除 connectMongo 相关判断
+    //   ? [
           EmailProvider({
             server: {
               host: "smtp.resend.com",
@@ -64,18 +69,24 @@ export const authOptions: NextAuthOptionsExtended = {
             },
             from: config.resend.fromNoReply,
           }),
-        ]
-      : []),
+    //     ]
+    //   : []),
   ],
-  // New users will be saved in Database (MongoDB Atlas). Each user (model) has some fields like name, email, image, etc..
-  // Requires a MongoDB database. Set MONOGODB_URI env variable.
-  // Learn more about the model type: https://next-auth.js.org/v3/adapters/models
-  ...(connectMongo && { adapter: MongoDBAdapter(connectMongo) }),
+  // 替换为 SupabaseAdapter
+  adapter: SupabaseAdapter({
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+    secret: process.env.SUPABASE_SERVICE_ROLE_KEY as string, // 使用 service_role key
+  }),
 
   callbacks: {
     session: async ({ session, token }) => {
       if (session?.user) {
         session.user.id = token.sub;
+        // 从 Supabase 获取 session，并添加 access_token 到 NextAuth session
+        const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+        if (supabaseSession) {
+          session.user.supabaseAccessToken = supabaseSession.access_token;
+        }
       }
       return session;
     },
@@ -95,4 +106,4 @@ export const authOptions: NextAuthOptionsExtended = {
   },
 };
 
-export default NextAuth(authOptions);
+export default NextAuth(authOptions );

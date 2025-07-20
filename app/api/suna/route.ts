@@ -1,172 +1,48 @@
-
-
-import { NextRequest, NextResponse } from 'next/server';
-// import { createClient } from '@supabase/supabase-js'; // 暂时注释掉Supabase客户端导入
-
-// 创建Supabase客户端（使用服务端配置）
-// const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-// const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-// const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-// 固定Suna Agent JWT，用于绕过500错误
-const FIXED_SUNA_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZDlhMDE4Yi02ZTIxLTQ4MzYtODdhMi01MTU5Y2FmYTEwMDQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzUyOTI3NTY1LCJpYXQiOjE3NTI5MjM5NjUsImVtYWlsIjoiMTExMzg0MDg1M0BxcS5jb20iLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsIjoiMTExMzg0MDg1M0BxcS5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicG9uZl92ZXJpZmllZCI6ZmFsc2UsInN1YiI6IjJkOWEwMThiLTZlMjEtNDgzNi04N2EyLTUxNTljYWYxMDEwNCJ9LCJyb2xlIjoiYXV0aGVudGljYXRlZCIsImFhbCI6ImFhbDEiLCJhbXIiOlt7Im1ldGhvZCI6InBhc3N3b3JkIiwidGltZXN0YW1wIjoxNzUyNjQ5MjQ3fV0sInNlc3Npb25faWQiOiI3YzJhM2JlMy04ZjgxLTQ1M2ItOGY2Ni1iYmI0MGIyMTE1NGYiLCJpc19hbm9ueW1vdXMiOmZhbHNlfQ.MDwpACeiIHGET2gF_tkY2kt5mXUqJTiBmZ2a1k_bIf8';
+// web-v7/app/api/suna/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { verifySupabaseJwt } from "@/utils/auth/verifySupabaseJwt"; 
 
 export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get("Authorization");
+  const supabaseJwt = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+
+  if (!supabaseJwt) {
+    return NextResponse.json({ error: "未提供认证令牌。" }, { status: 401 });
+  }
+
+  const decodedJwt = await verifySupabaseJwt(supabaseJwt);
+  if (!decodedJwt) {
+    return NextResponse.json({ error: "无效的认证令牌。" }, { status: 401 });
+  }
+
   try {
-    console.log('=== Suna API Route Called ===');
-    
-    // 获取请求体
     const body = await request.json();
-    console.log('Request body:', JSON.stringify(body, null, 2));
-    
-    // 从请求头获取JWT (此部分暂时注释，直接使用固定JWT)
-    // const authHeader = request.headers.get('authorization');
-    // if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    //   console.error('Missing or invalid authorization header');
-    //   return NextResponse.json(
-    //     { error: '缺少认证信息，请重新登录' },
-    //     { status: 401 }
-    //   );
-    // }
-    
-    // const jwt = authHeader.substring(7); // 移除 "Bearer " 前缀
-    const jwt = FIXED_SUNA_JWT; // 直接使用固定JWT
-    console.log('Using fixed JWT token length:', jwt.length);
-    
-    // 验证JWT token (此部分暂时注释，直接使用固定JWT)
-    // const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-    // if (authError || !user) {
-    //   console.error('JWT验证失败:', authError);
-    //   return NextResponse.json(
-    //     { error: 'JWT token无效，请重新登录' },
-    //     { status: 401 }
-    //   );
-    // }
-    
-    // console.log('JWT验证成功，用户ID:', user.id); // 此行不再需要，因为不验证用户ID
-    
-    // 调用Suna API的agent/initiate端点，添加/api前缀
-    const sunaApiUrl = 'https://suna-1.learnwise.app/api/agent/initiate';
-    console.log('Calling Suna API with URL:', sunaApiUrl);
-    
-    // 准备FormData（Suna API期望的格式）
-    const formData = new FormData();
-    formData.append('prompt', body.prompt || '');
-    formData.append('model_name', 'claude-4'); // 尝试使用 claude-4 模型
-    formData.append('enable_thinking', 'false');
-    formData.append('reasoning_effort', 'medium');
-    formData.append('stream', 'false');
-    formData.append('enable_context_manager', 'true');
-    
-    // 添加故事相关参数
-    if (body.storyLength) {
-      formData.append('story_length', body.storyLength);
-    }
-    if (body.ageGroup) {
-      formData.append('age_group', body.ageGroup);
-    }
-    if (body.storyType) {
-      formData.append('story_type', body.storyType);
-    }
-    
-    let sunaResponse;
-    try {
-      sunaResponse = await fetch(sunaApiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${jwt}`,
-        },
-        body: formData,
-      });
-      
-      console.log('Suna API response status:', sunaResponse.status);
-      console.log('Suna API response headers:', Object.fromEntries(sunaResponse.headers.entries()));
-      
-    } catch (fetchError: any) {
-      console.error('Fetch error when calling Suna API:', fetchError);
-      return NextResponse.json(
-        { error: '无法连接到Suna Agent服务，请稍后重试' },
-        { status: 503 }
-      );
-    }
-    
-    // 检查Suna API响应
+    const { prompt, tags } = body; // 接收prompt和tags
+
+    const sunaResponse = await fetch("https://suna-1.learnwise.app/api/agent/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseJwt}`,
+        // 如果 Suna AI Agent 还需要额外的 API Key ，请在此处添加
+        // ...(process.env.SUNAAI_API_KEY && { "X-Suna-Api-Key": process.env.SUNAAI_API_KEY }),
+      },
+      body: JSON.stringify({ prompt, tags }), // 传递prompt和tags
+    });
+
     if (!sunaResponse.ok) {
       const errorText = await sunaResponse.text();
-      console.error('Suna API call failed:', {
-        status: sunaResponse.status,
-        statusText: sunaResponse.statusText,
-        body: errorText
-      });
-      
-      if (sunaResponse.status === 404) {
-        return NextResponse.json(
-          { error: 'Suna Agent端点不存在，请联系管理员' },
-          { status: 404 }
-        );
-      } else if (sunaResponse.status === 401) {
-        return NextResponse.json(
-          { error: '认证失败，请重新登录' },
-          { status: 401 }
-        );
-      } else {
-        return NextResponse.json(
-          { error: `Suna API调用失败: ${sunaResponse.status} ${sunaResponse.statusText}` },
-          { status: sunaResponse.status }
-        );
-      }
-    }
-    
-    // 解析Suna API响应
-    let sunaData;
-    try {
-      const responseText = await sunaResponse.text();
-      console.log('Suna API raw response:', responseText);
-      
-      if (!responseText.trim()) {
-        throw new Error('Empty response from Suna API');
-      }
-      
-      sunaData = JSON.parse(responseText);
-      console.log('Suna API parsed response:', sunaData);
-      
-    } catch (parseError) {
-      console.error('Failed to parse Suna API response:', parseError);
       return NextResponse.json(
-        { error: 'Suna Agent服务返回了无效的响应格式' },
-        { status: 502 }
+        { error: `Suna AI Agent API 错误: ${sunaResponse.statusText}. 详情: ${errorText}` },
+        { status: sunaResponse.status }
       );
     }
-    
-    // 返回成功响应
-    const result = {
-      threadId: sunaData.thread_id,
-      agentRunId: sunaData.agent_run_id,
-      message: '故事生成已开始',
-      ...sunaData
-    };
-    
-    console.log('=== Suna API Route Success ===');
-    console.log('Final result:', result);
-    
-    return NextResponse.json(result);
-    
-  } catch (error: any) {
-    console.error('=== Suna API Route Error ===');
-    console.error('Error details:', error);
-    console.error('Error stack:', error.stack);
-    
-    return NextResponse.json(
-      { 
-        error: '服务器内部错误，请稍后重试',
-        details: error.message 
-      },
-      { status: 500 }
-    );
+
+    const data = await sunaResponse.json();
+    return NextResponse.json(data);
+
+  } catch (error) {
+    console.error("调用 Suna AI Agent 失败:", error);
+    return NextResponse.json({ error: "调用 Suna AI Agent 服务失败。" }, { status: 500 });
   }
 }
-
-
-
-
-

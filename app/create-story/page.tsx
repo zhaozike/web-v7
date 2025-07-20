@@ -1,268 +1,202 @@
+// web-v7/app/create-story/page.tsx
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSession } from 'next-auth/react';
+import { supabase } from "@/utils/supabase/client"; 
+import { useRouter } from "next/navigation";
+
 import ChildrenNavbar from "@/components/ChildrenNavbar";
 import ChildrenFooter from "@/components/ChildrenFooter";
 
-function CreateStoryContent() {
+function CreateStorybookContent() {
   const [prompt, setPrompt] = useState("");
-  const [storyLength, setStoryLength] = useState("short");
-  const [ageGroup, setAgeGroup] = useState("3-5");
-  const [storyType, setStoryType] = useState("adventure");
+  const [tags, setTags] = useState(""); // 新增标签输入
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedStory, setGeneratedStory] = useState<any>(null);
-  const [error, setError] = useState<string>("");
-  const { data: session, status } = useSession();
+  const [generatedStorybook, setGeneratedStorybook] = useState<string | null>(null); // 存储生成的绘本内容
+  const [error, setError] = useState<string | null>(null);
+  const [supabaseJwt, setSupabaseJwt] = useState<string | null>(null);
+  const router = useRouter();
 
-  const handleCreateStory = async () => {
-    if (!prompt.trim()) return;
-    if (status === "unauthenticated") {
-      setError("请先登录后再创作故事");
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setSupabaseJwt(session.access_token);
+      } else {
+        setSupabaseJwt(null);
+        router.push("/auth/signin"); // 如果未登录，重定向到登录页面
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSupabaseJwt(session.access_token);
+      } else {
+        router.push("/auth/signin");
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [router]);
+
+  const handleCreateStorybook = async () => {
+    if (!prompt.trim()) {
+      setError("请输入绘本主题。");
+      return;
+    }
+
+    if (!supabaseJwt) {
+      setError("请先登录以创作绘本。");
+      router.push("/auth/signin");
       return;
     }
 
     setIsGenerating(true);
-    setError("");
+    setGeneratedStorybook(null);
+    setError(null);
 
     try {
-      const startResponse = await fetch("/api/suna", {
+      const response = await fetch("/api/suna", { // 调用现有 /api/suna 路由
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.user?.email || 'demo'}`, // 使用email作为授权凭证
+          "Authorization": `Bearer ${supabaseJwt}`,
         },
         body: JSON.stringify({
-          prompt: prompt.trim(),
-          storyLength,
-          ageGroup,
-          storyType,
+          prompt,
+          tags, // 传递标签
         }),
       });
 
-      if (!startResponse.ok) {
-        const errorData = await startResponse.json();
-        throw new Error(errorData.error || "故事生成失败");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "绘本生成失败。");
       }
 
-      const { threadId, agentRunId } = await startResponse.json();
+      const data = await response.json();
+      // 假设 /api/suna 现在返回任务 ID，需要轮询
+      const { thread_id, agent_run_id } = data;
 
-      let storyResult = null;
-      while (isGenerating) { // <-- 这里是修改的地方
-        await new Promise(resolve => setTimeout(resolve, 3000)); // 每3秒轮询一次
+      let storybookResult = null;
+      let status = "pending";
+      const maxAttempts = 60; 
+      let attempts = 0;
 
-        const statusResponse = await fetch(`/api/suna-status?threadId=${threadId}&agentRunId=${agentRunId}`, {
+      while (status !== "completed" && status !== "failed" && attempts < maxAttempts) {
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 3000)); 
+
+        const statusResponse = await fetch("/api/suna-status", { // 调用现有 /api/suna-status 路由
+          method: "POST",
           headers: {
-            Authorization: `Bearer ${session?.user?.email || 'demo'}`, // 使用email作为授权凭证
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseJwt}`,
           },
+          body: JSON.stringify({ thread_id, agent_run_id }),
         });
-        const statusData = await statusResponse.json();
 
-        if (statusData.status === "completed") {
-          storyResult = statusData.story;
-          break;
-        } else if (statusData.status === "failed") {
-          throw new Error(statusData.error || "故事生成失败");
+        if (!statusResponse.ok) {
+          throw new Error("查询绘本状态失败。");
+        }
+
+        const statusData = await statusResponse.json();
+        status = statusData.status;
+        storybookResult = statusData.story; // 假设状态 API 返回最终绘本内容
+
+        if (status === "failed") {
+          throw new Error(statusData.message || "绘本生成失败。");
         }
       }
 
-      setGeneratedStory(storyResult);
-    } catch (err: any) {
-      setError(err.message);
+      if (status === "completed" && storybookResult) {
+        setGeneratedStorybook(storybookResult);
+      } else if (attempts >= maxAttempts) {
+        setError("绘本生成超时，请稍后再试。");
+      } else {
+        setError("绘本生成未完成或发生未知错误。");
+      }
+
+    } catch (err) {
+      console.error("Error during storybook generation:", err);
+      setError(err instanceof Error ? err.message : "绘本生成过程中发生未知错误。");
     } finally {
       setIsGenerating(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-base-100">
+    <div className="min-h-screen flex flex-col">
       <ChildrenNavbar />
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-center text-gray-800 mb-12">
-          AI魔法绘本
-          <br />
-          <span className="text-purple-600">创造属于你的故事</span>
-        </h1>
-
-        <div className="bg-white rounded-3xl shadow-xl p-8 mb-12">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">故事创作</h2>
-          <div className="space-y-6">
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text text-lg font-semibold">故事主题/关键词</span>
-              </label>
-              <textarea
-                className="textarea textarea-bordered h-24 text-base"
-                placeholder="例如：一只勇敢的小猫，探索神秘的森林"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                disabled={isGenerating}
-              ></textarea>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text text-lg font-semibold">故事长度</span>
-                </label>
-                <select
-                  className="select select-bordered w-full text-base"
-                  value={storyLength}
-                  onChange={(e) => setStoryLength(e.target.value)}
-                  disabled={isGenerating}
-                >
-                  <option value="short">短篇 (约500字)</option>
-                  <option value="medium">中篇 (约1000字)</option>
-                  <option value="long">长篇 (约2000字)</option>
-                </select>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text text-lg font-semibold">适合年龄</span>
-                </label>
-                <select
-                  className="select select-bordered w-full text-base"
-                  value={ageGroup}
-                  onChange={(e) => setAgeGroup(e.target.value)}
-                  disabled={isGenerating}
-                >
-                  <option value="3-5">3-5岁</option>
-                  <option value="6-8">6-8岁</option>
-                  <option value="9-12">9-12岁</option>
-                </select>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text text-lg font-semibold">故事类型</span>
-                </label>
-                <select
-                  className="select select-bordered w-full text-base"
-                  value={storyType}
-                  onChange={(e) => setStoryType(e.target.value)}
-                  disabled={isGenerating}
-                >
-                  <option value="adventure">冒险故事</option>
-                  <option value="friendship">友谊故事</option>
-                  <option value="learning">学习故事</option>
-                  <option value="fantasy">幻想故事</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="text-center">
-              <button
-                onClick={handleCreateStory}
-                disabled={!prompt.trim() || isGenerating}
-                className="btn bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-none px-12 py-4 text-xl font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                {isGenerating ? (
-                  <>
-                    <span className="loading loading-spinner loading-md mr-2"></span>
-                    AI正在创作中...
-                  </>
-                ) : (
-                  <>
-                    ✨ 开始创作故事
-                  </>
-                )}
-              </button>
-            </div>
+      <main className="flex-grow container mx-auto p-4">
+        <h1 className="text-3xl font-bold mb-6 text-center">创作你的专属绘本</h1>
+        <div className="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">
+          <div className="mb-4">
+            <label htmlFor="prompt" className="block text-gray-700 text-sm font-bold mb-2">
+              绘本主题/关键词:
+            </label>
+            <textarea
+              id="prompt"
+              rows={4}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              placeholder="例如：一只勇敢的小猫去太空探险"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+            ></textarea>
           </div>
+
+          <div className="mb-4">
+            <label htmlFor="tags" className="block text-gray-700 text-sm font-bold mb-2">
+              标签 (可选，逗号分隔):
+            </label>
+            <input
+              id="tags"
+              type="text"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              placeholder="例如：儿童, 奇幻, 动物"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+            />
+          </div>
+
+          {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
+
+          <div className="flex items-center justify-between">
+            <button
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50"
+              type="button"
+              onClick={handleCreateStorybook}
+              disabled={isGenerating}
+            >
+              {isGenerating ? "正在生成..." : "生成绘本"}
+            </button>
+          </div>
+
+          {isGenerating && (
+            <div className="mt-4 text-center text-gray-600">
+              <p>绘本正在生成中，请稍候...</p>
+            </div>
+          )}
+
+          {generatedStorybook && (
+            <div className="mt-8 p-6 bg-gray-50 rounded-lg shadow-inner">
+              <h2 className="text-2xl font-bold mb-4">生成的绘本:</h2>
+              <div className="whitespace-pre-wrap text-gray-800">
+                {generatedStorybook}
+              </div>
+            </div>
+          )}
         </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-8">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">⚠️</span>
-              <div>
-                <h3 className="text-lg font-semibold text-red-800 mb-2">生成失败</h3>
-                <p className="text-red-600">{error}</p>
-                <button onClick={() => setError("")} className="mt-3 text-sm text-red-500 hover:text-red-700 underline">关闭</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isGenerating && (
-          <div className="bg-white rounded-3xl shadow-xl p-8 mb-12">
-            <div className="text-center">
-              <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-4xl text-white animate-bounce">🎨</span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-4">AI正在为你创作故事...</h3>
-              <div className="max-w-md mx-auto">
-                <div className="flex justify-between text-sm text-gray-600 mb-2">
-                  <span>创作进度</span>
-                  <span>75%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full animate-pulse" style={{ width: "75%" }}></div>
-                </div>
-              </div>
-              <p className="text-gray-600 mt-4">正在生成精美的插画和有趣的情节...</p>
-            </div>
-          </div>
-        )}
-
-        {generatedStory && (
-          <div className="bg-white rounded-3xl shadow-xl p-8">
-            <div className="text-center mb-8">
-              <h3 className="text-3xl font-bold text-gray-800 mb-4">🎉 你的故事创作完成了！</h3>
-              <p className="text-gray-600">你的专属绘本故事已经生成完成</p>
-            </div>
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-8">
-              {generatedStory.title && (
-                <h4 className="text-2xl font-bold text-gray-800 mb-4 text-center">{generatedStory.title}</h4>
-              )}
-              {generatedStory.content && (
-                <div className="mb-6">
-                  <p className="text-gray-600 text-center mb-4">
-                    {typeof generatedStory.content === 'string' ? generatedStory.content.substring(0, 200) + (generatedStory.content.length > 200 ? '...' : '') : '故事内容已生成完成'}
-                  </p>
-                </div>
-              )}
-              {generatedStory.pages && Array.isArray(generatedStory.pages) && (
-                <div className="mb-6">
-                  <h5 className="text-lg font-semibold text-gray-700 mb-3">故事包含 {generatedStory.pages.length} 页</h5>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {generatedStory.pages.slice(0, 6).map((page: any, index: number) => (
-                      <div key={index} className="bg-white rounded-lg p-4 shadow-sm">
-                        <div className="text-sm text-gray-500 mb-2">第 {index + 1} 页</div>
-                        {page.image && (
-                          <img src={page.image} alt={`第${index + 1}页插图`} className="w-full h-24 object-cover rounded mb-2" />
-                        )}
-                        <p className="text-xs text-gray-600 line-clamp-3">{page.text || page.content || '页面内容'}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button onClick={() => console.log("查看完整故事:", generatedStory)} className="btn bg-gradient-to-r from-green-500 to-blue-500 text-white border-none px-8 py-3 rounded-full">
-                  📖 查看完整故事
-                </button>
-                <button onClick={() => console.log("保存故事:", generatedStory)} className="btn btn-outline border-2 border-blue-300 text-blue-600 hover:bg-blue-500 hover:text-white px-8 py-3 rounded-full">
-                  💾 保存故事
-                </button>
-                <button onClick={() => { setGeneratedStory(null); setPrompt(""); setError(""); }} className="btn btn-outline border-2 border-purple-300 text-purple-600 hover:bg-purple-500 hover:text-white px-8 py-3 rounded-full">
-                  🔄 重新创作
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      </main>
       <ChildrenFooter />
     </div>
   );
 }
 
-export default function CreateStory() {
+export default function CreateStorybookPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="loading loading-spinner loading-lg"></div></div>}>
-      <CreateStoryContent />
+    <Suspense fallback={<div>Loading...</div>}>
+      <CreateStorybookContent />
     </Suspense>
   );
 }

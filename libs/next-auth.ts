@@ -2,22 +2,43 @@ import NextAuth from "next-auth";
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import config from "@/config";
 import connectMongo from "./mongo";
 
 interface NextAuthOptionsExtended extends NextAuthOptions {
-  adapter: any;
+  adapter?: any;
 }
 
 export const authOptions: NextAuthOptionsExtended = {
   // Set any random key in .env.local
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
+    // 添加简单的邮箱密码登录
+    CredentialsProvider({
+      name: "credentials",
+      credentials: {
+        email: { label: "邮箱", type: "email", placeholder: "请输入邮箱" },
+        password: { label: "密码", type: "password", placeholder: "请输入密码" }
+      },
+      async authorize(credentials) {
+        // 这里应该验证用户凭据
+        // 为了演示，我们暂时允许任何邮箱和密码
+        if (credentials?.email && credentials?.password) {
+          return {
+            id: "1",
+            name: credentials.email.split("@")[0],
+            email: credentials.email,
+          }
+        }
+        return null
+      }
+    }),
     GoogleProvider({
       // Follow the "Login with Google" tutorial to get your credentials
-      clientId: process.env.GOOGLE_ID,
-      clientSecret: process.env.GOOGLE_SECRET,
+      clientId: process.env.GOOGLE_ID || "",
+      clientSecret: process.env.GOOGLE_SECRET || "",
       async profile(profile) {
         return {
           id: profile.sub,
@@ -67,6 +88,10 @@ export const authOptions: NextAuthOptionsExtended = {
     // Add you own logo below. Recommended size is rectangle (i.e. 200x50px) and show your logo + name.
     // It will be used in the login flow to display your logo. If you don't add it, it will look faded.
     logo: `https://${config.domainName}/logoAndName.png`,
+  },
+  pages: {
+    signIn: 
+'/auth/signin',
   },
 };
 

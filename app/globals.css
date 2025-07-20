@@ -41,4 +41,9 @@ progress::-webkit-progress-value {
     transform: translateY(-10px);
   }
 }
-
+/* 修复登录模态框高度问题 */
+.modal-box {
+  max-height: none !important;
+  height: auto !important;
+  overflow-y: visible !important;
+}

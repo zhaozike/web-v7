@@ -1,15 +1,11 @@
-
-// web-v7/libs/next-auth.ts
 import NextAuth from "next-auth";
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
 import CredentialsProvider from "next-auth/providers/credentials";
-// import { MongoDBAdapter } from "@auth/mongodb-adapter"; // 移除 MongoDBAdapter 导入
 import config from "@/config";
-// import connectMongo from "./mongo"; // 移除 connectMongo 导入
 
-// 新增导入 SupabaseAdapter 和 supabase 客户端
+// 导入 SupabaseAdapter 和 supabase 客户端
 import { SupabaseAdapter } from "@next-auth/supabase-adapter";
 import { supabase } from "@/utils/supabase/client"; 
 
@@ -55,23 +51,17 @@ export const authOptions: NextAuthOptionsExtended = {
         };
       },
     }),
-    // Follow the "Login with Email" tutorial to set up your email server
-    // Requires a MongoDB database. Set MONOGODB_URI env variable.
-    // ...(connectMongo // 移除 connectMongo 相关判断
-    //   ? [
-          EmailProvider({
-            server: {
-              host: "smtp.resend.com",
-              port: 465,
-              auth: {
-                user: "resend",
-                pass: process.env.RESEND_API_KEY,
-              },
-            },
-            from: config.resend.fromNoReply,
-          }),
-    //     ]
-    //   : []),
+    EmailProvider({
+      server: {
+        host: "smtp.resend.com",
+        port: 465,
+        auth: {
+          user: "resend",
+          pass: process.env.RESEND_API_KEY,
+        },
+      },
+      from: config.resend.fromNoReply,
+    }),
   ],
   // 替换为 SupabaseAdapter
   adapter: SupabaseAdapter({
@@ -118,5 +108,3 @@ export const authOptions: NextAuthOptionsExtended = {
 '/auth/signin',
   },
 };
-
-export default NextAuth(authOptions );;

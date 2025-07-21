@@ -1,38 +1,55 @@
 "use client";
 
 import React, { useState } from "react";
-import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/utils/supabase/client";
 
-export default function SignIn() {
+export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setSuccess("");
+
+    // 验证密码
+    if (password !== confirmPassword) {
+      setError("两次输入的密码不一致");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("密码长度至少为6位");
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      const result = await signIn("credentials", {
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        redirect: false,
       });
 
-      if (result?.error) {
-        setError("登录失败，请检查邮箱和密码");
-      } else {
-        // 登录成功，重定向到创作页面
-        router.push("/create-story");
-        router.refresh();
+      if (error) {
+        setError(error.message);
+      } else if (data.user) {
+        setSuccess("注册成功！请检查您的邮箱以验证账户。");
+        // 可以选择自动跳转到登录页面
+        setTimeout(() => {
+          router.push("/auth/signin");
+        }, 3000);
       }
     } catch (error) {
-      setError("登录过程中出现错误");
+      setError("注册过程中出现错误");
     } finally {
       setIsLoading(false);
     }
@@ -42,7 +59,7 @@ export default function SignIn() {
     <div className="min-h-screen flex items-center justify-center bg-base-200">
       <div className="card w-96 bg-base-100 shadow-xl">
         <div className="card-body">
-          <h2 className="card-title justify-center text-2xl mb-6">登录账户</h2>
+          <h2 className="card-title justify-center text-2xl mb-6">注册账户</h2>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="form-control">
@@ -65,11 +82,27 @@ export default function SignIn() {
               </label>
               <input
                 type="password"
-                placeholder="请输入密码"
+                placeholder="请输入密码（至少6位）"
                 className="input input-bordered w-full"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={6}
+              />
+            </div>
+
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">确认密码</span>
+              </label>
+              <input
+                type="password"
+                placeholder="请再次输入密码"
+                className="input input-bordered w-full"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
               />
             </div>
 
@@ -79,30 +112,27 @@ export default function SignIn() {
               </div>
             )}
 
+            {success && (
+              <div className="alert alert-success">
+                <span>{success}</span>
+              </div>
+            )}
+
             <div className="form-control mt-6">
               <button
                 type="submit"
                 className={`btn btn-primary ${isLoading ? "loading" : ""}`}
                 disabled={isLoading}
               >
-                {isLoading ? "登录中..." : "登录"}
+                {isLoading ? "注册中..." : "注册"}
               </button>
             </div>
           </form>
 
-          <div className="divider">或</div>
-          
-          <button
-            onClick={() => signIn("google")}
-            className="btn btn-outline w-full"
-          >
-            使用 Google 登录
-          </button>
-
           <div className="text-center mt-4">
-            <span className="text-sm">还没有账户？</span>
-            <Link href="/auth/signup" className="link link-primary ml-1">
-              立即注册
+            <span className="text-sm">已有账户？</span>
+            <Link href="/auth/signin" className="link link-primary ml-1">
+              立即登录
             </Link>
           </div>
 
@@ -116,3 +146,4 @@ export default function SignIn() {
     </div>
   );
 }
+

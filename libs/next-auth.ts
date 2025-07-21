@@ -1,3 +1,4 @@
+
 // web-v7/libs/next-auth.ts
 import NextAuth from "next-auth";
 import type { NextAuthOptions } from "next-auth";
@@ -90,6 +91,18 @@ export const authOptions: NextAuthOptionsExtended = {
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // 如果URL已经是完整的URL且在同一域名下，直接返回
+      if (url.startsWith(baseUrl)) {
+        return url;
+      }
+      // 如果是相对路径，拼接baseUrl
+      if (url.startsWith("/")) {
+        return baseUrl + url;
+      }
+      // 默认重定向到创作页面
+      return baseUrl + "/create-story";
+    },
   },
   session: {
     strategy: "jwt",
@@ -97,7 +110,7 @@ export const authOptions: NextAuthOptionsExtended = {
   theme: {
     brandColor: config.colors.main,
     // Add you own logo below. Recommended size is rectangle (i.e. 200x50px) and show your logo + name.
-    // It will be used in the login flow to display your logo. If you don't add it, it will look faded.
+    // It will be used in the login flow to display your logo. If you don\"t add it, it will look faded.
     logo: `https://${config.domainName}/logoAndName.png`,
   },
   pages: {
@@ -106,4 +119,4 @@ export const authOptions: NextAuthOptionsExtended = {
   },
 };
 
-export default NextAuth(authOptions );
+export default NextAuth(authOptions );;
